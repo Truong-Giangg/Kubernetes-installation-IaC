@@ -1,11 +1,8 @@
 init:
-	terraform init
-
+	cd environments/local && terraform init
 plan:
-	terraform plan -input=false
-
+	cd environments/local && terraform plan -input=false
 apply:
-	terraform apply -auto-approve -input=false
-
+	cd environments/local && terraform apply -auto-approve -input=false
 destroy:
-	terraform destroy -auto-approve
+	cd environments/local && terraform destroy -auto-approve
