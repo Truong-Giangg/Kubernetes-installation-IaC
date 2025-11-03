@@ -8,10 +8,14 @@ KUBECTL_VERSION=1.30.0
 HELM_VERSION=3.15.3
 DOCKER_COMPOSE_VERSION=2.27.0
 
+# Ensure required tools
+apt-get update -y
+apt-get install -y unzip ca-certificates curl gnupg lsb-release make
+
 # Terraform
 curl -LO "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip"
-unzip terraform_${TF_VERSION}_linux_amd64.zip -d /usr/local/bin
-rm terraform_${TF_VERSION}_linux_amd64.zip
+unzip -o terraform_${TF_VERSION}_linux_amd64.zip -d /usr/local/bin
+rm -f terraform_${TF_VERSION}_linux_amd64.zip
 
 # Kind
 curl -Lo /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v${KIND_VERSION}/kind-linux-amd64
@@ -31,9 +35,6 @@ rm -rf linux-amd64 helm.tar.gz
 if ! command -v docker &> /dev/null; then
   echo "🚀 Installing Docker..."
 
-  apt-get update -y
-  apt-get install -y ca-certificates curl gnupg lsb-release
-
   mkdir -p /etc/apt/keyrings
   curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 
@@ -45,12 +46,12 @@ if ! command -v docker &> /dev/null; then
   apt-get update -y
   apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-  # Optional: add current user to docker group
-  if [ -n "$SUDO_USER" ]; then
-    usermod -aG docker $SUDO_USER
-  fi
+  # Add current user to docker group (so docker commands don't need sudo)
+  USER_TO_ADD=${SUDO_USER:-$USER}
+  usermod -aG docker "$USER_TO_ADD"
 
   echo "✅ Docker installed successfully."
+  echo "⚠️ Please log out and back in (or run 'newgrp docker') for group changes to take effect."
 else
   echo "ℹ️ Docker already installed, skipping..."
 fi
