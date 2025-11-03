@@ -5,6 +5,7 @@ terraform {
     kubernetes = { source = "hashicorp/kubernetes", version = "~> 2.33" }
     helm       = { source = "hashicorp/helm",       version = "~> 2.13" }
     local      = { source = "hashicorp/local",      version = "~> 2.5" }
+    time = { source = "hashicorp/time", version = "~> 0.11" }
   }
 }
 

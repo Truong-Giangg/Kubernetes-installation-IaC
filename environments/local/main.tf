@@ -33,3 +33,33 @@ module "addons" {
     }
   }
 }
+
+# Give ingress-nginx (and its admission webhook) time to become Ready
+resource "time_sleep" "wait_for_ingress_webhook" {
+  depends_on      = [module.addons]
+  create_duration = "20s"
+}
+
+resource "helm_release" "argocd" {
+  name             = "argocd"
+  repository       = "https://argoproj.github.io/argo-helm"
+  chart            = "argo-cd"
+  namespace        = "argocd"
+  create_namespace = true
+
+  values = [yamlencode({
+    dex = { enabled = false }
+    server = {
+      ingress = {
+        enabled          = true
+        ingressClassName = "nginx"
+        hosts            = ["argocd.localtest.me"]
+        paths            = ["/"]
+        tls              = []
+      }
+      extraArgs = ["--insecure"]
+    }
+  })]
+
+  depends_on = [time_sleep.wait_for_ingress_webhook]
+}

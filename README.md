@@ -13,6 +13,7 @@ This project deploys a **local Kubernetes cluster** using Kind and installs addo
 
 - **Metrics Server** (Kind-friendly args)
 - **Ingress NGINX** (hostPorts + NodePorts, accessible via http://localhost:8080)
+- **ArgoCD** (via Ingress at http://argocd.localtest.me)
 
 ## Requirements
 
@@ -31,4 +32,10 @@ terraform apply -auto-approve
 kubectl --kubeconfig ../../modules/cluster/kubeconfig get nodes
 kubectl --kubeconfig ../../modules/cluster/kubeconfig -n ingress-nginx get pods
 kubectl --kubeconfig ../../modules/cluster/kubeconfig -n kube-system get pods
+```
+
+## ArgoCD login
+```bash
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d; echo
+# username: admin
 ```
