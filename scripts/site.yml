@@ -1,4 +1,4 @@
-  ---
+---
 - name: Install dev tools (Docker, kubectl, kind, Helm, Terraform) — simple mode
   hosts: all
   gather_facts: yes
