@@ -55,6 +55,7 @@
           - lsb-release
           - unzip
           - gpg
+          - make
         update_cache: yes
         state: present
 
@@ -302,6 +303,7 @@
         echo "helm: $(helm version --short || true)"
         echo "docker: $(docker --version || true)"
         echo "compose: $(docker compose version || true)"
+        echo "make: $(make --version | head -n1 || true)"
       args:
         executable: /bin/bash
       changed_when: false
