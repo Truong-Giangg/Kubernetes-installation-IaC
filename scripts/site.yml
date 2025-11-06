@@ -1,0 +1,309 @@
+  ---
+- name: Install dev tools (Docker, kubectl, kind, Helm, Terraform) — simple mode
+  hosts: all
+  gather_facts: yes
+  become: false
+
+  vars:
+    tools_state: present                # present | absent (override with -e)
+    bin_dir: /usr/local/bin
+
+    # Versions (override with -e tf_version=... etc)
+    tf_version: "1.6.6"
+    kind_version: "0.23.0"
+    kubectl_version: "1.30.0"
+    helm_version: "3.15.3"
+
+    # Map ansible_architecture to Docker repo arch
+    docker_repo_arch: >-
+      {{ 'amd64' if ansible_architecture in ['x86_64','amd64']
+         else 'arm64' if ansible_architecture in ['aarch64','arm64']
+         else ansible_architecture }}
+    ubuntu_codename: "{{ ansible_facts.lsb.codename | default(ansible_facts.distribution_release | default('jammy')) }}"
+
+    # Docker packages (official repo)
+    docker_packages:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+
+    # Who should be added to docker group (optional)
+    docker_user: "{{ lookup('env','USER') | default(omit) }}"
+
+  pre_tasks:
+    # Clean any broken Docker repo/key so apt update works
+    - name: Remove any stale/broken Docker repo files (pre-clean)
+      become: yes
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/docker.list
+        - /etc/apt/keyrings/docker.gpg
+        - /etc/apt/keyrings/docker.asc
+      tags: [docker]
+
+    - name: Ensure apt cache is usable & base deps installed
+      become: yes
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - unzip
+          - gpg
+        update_cache: yes
+        state: present
+
+  tasks:
+    ######################################################################
+    # Docker (repo + packages)
+    ######################################################################
+    - name: Create keyring dir
+      become: yes
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+      tags: [docker]
+
+    - name: Download Docker GPG key (ASCII)
+      become: yes
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: "0644"
+      when: tools_state == "present"
+      tags: [docker]
+
+    - name: Convert Docker key to dearmored keyring
+      become: yes
+      command:
+        cmd: gpg --dearmor -o /etc/apt/keyrings/docker.gpg /etc/apt/keyrings/docker.asc
+        creates: /etc/apt/keyrings/docker.gpg
+      when: tools_state == "present"
+      tags: [docker]
+
+    - name: Ensure dearmored keyring is world-readable
+      become: yes
+      file:
+        path: /etc/apt/keyrings/docker.gpg
+        mode: "0644"
+      when: tools_state == "present"
+      tags: [docker]
+
+    - name: Configure Docker apt repo
+      become: yes
+      copy:
+        dest: /etc/apt/sources.list.d/docker.list
+        mode: "0644"
+        content: |
+          deb [arch={{ docker_repo_arch }} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ubuntu_codename }} stable
+      when: tools_state == "present"
+      tags: [docker]
+
+    - name: Remove Docker repo and keys (uninstall)
+      become: yes
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/docker.list
+        - /etc/apt/keyrings/docker.gpg
+        - /etc/apt/keyrings/docker.asc
+      when: tools_state == "absent"
+      tags: [docker]
+
+    - name: apt update (after Docker repo change)
+      become: yes
+      apt:
+        update_cache: yes
+        cache_valid_time: 0
+      tags: [docker]
+
+    - name: Install/Remove Docker packages
+      become: yes
+      apt:
+        name: "{{ docker_packages }}"
+        state: "{{ tools_state }}"
+        update_cache: yes
+      tags: [docker]
+
+    - name: Add user to docker group (no sudo for docker)
+      become: yes
+      user:
+        name: "{{ docker_user }}"
+        groups: docker
+        append: yes
+      when:
+        - tools_state == "present"
+        - docker_user is defined
+      tags: [docker]
+
+    - name: Purge Docker data on uninstall (optional)
+      become: yes
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /var/lib/docker
+        - /var/lib/containerd
+      when: tools_state == "absent"
+      tags: [docker]
+
+    ######################################################################
+    # kubectl
+    ######################################################################
+    - name: Install kubectl
+      become: yes
+      get_url:
+        url: "https://dl.k8s.io/release/v{{ kubectl_version }}/bin/linux/amd64/kubectl"
+        dest: "{{ bin_dir }}/kubectl"
+        mode: "0755"
+      when: tools_state == "present"
+      tags: [kubectl]
+
+    - name: Remove kubectl
+      become: yes
+      file:
+        path: "{{ bin_dir }}/kubectl"
+        state: absent
+      when: tools_state == "absent"
+      tags: [kubectl]
+
+    ######################################################################
+    # kind
+    ######################################################################
+    - name: Install kind
+      become: yes
+      get_url:
+        url: "https://kind.sigs.k8s.io/dl/v{{ kind_version }}/kind-linux-amd64"
+        dest: "{{ bin_dir }}/kind"
+        mode: "0755"
+      when: tools_state == "present"
+      tags: [kind]
+
+    - name: Remove kind
+      become: yes
+      file:
+        path: "{{ bin_dir }}/kind"
+        state: absent
+      when: tools_state == "absent"
+      tags: [kind]
+
+    ######################################################################
+    # Helm
+    ######################################################################
+    - name: Download Helm tarball
+      become: yes
+      get_url:
+        url: "https://get.helm.sh/helm-v{{ helm_version }}-linux-amd64.tar.gz"
+        dest: /tmp/helm.tgz
+        mode: "0644"
+      when: tools_state == "present"
+      tags: [helm]
+
+    - name: Unpack Helm
+      become: yes
+      unarchive:
+        src: /tmp/helm.tgz
+        dest: /tmp
+        remote_src: yes
+      when: tools_state == "present"
+      tags: [helm]
+
+    - name: Install Helm binary
+      become: yes
+      copy:
+        src: /tmp/linux-amd64/helm
+        dest: "{{ bin_dir }}/helm"
+        mode: "0755"
+      when: tools_state == "present"
+      tags: [helm]
+
+    - name: Cleanup Helm temp files
+      become: yes
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/helm.tgz
+        - /tmp/linux-amd64
+      when: tools_state == "present"
+      tags: [helm]
+
+    - name: Remove Helm
+      become: yes
+      file:
+        path: "{{ bin_dir }}/helm"
+        state: absent
+      when: tools_state == "absent"
+      tags: [helm]
+
+    ######################################################################
+    # Terraform
+    ######################################################################
+    - name: Download Terraform zip
+      become: yes
+      get_url:
+        url: "https://releases.hashicorp.com/terraform/{{ tf_version }}/terraform_{{ tf_version }}_linux_amd64.zip"
+        dest: /tmp/terraform.zip
+        mode: "0644"
+      when: tools_state == "present"
+      tags: [terraform]
+
+    - name: Unzip Terraform
+      become: yes
+      unarchive:
+        src: /tmp/terraform.zip
+        dest: /tmp
+        remote_src: yes
+      when: tools_state == "present"
+      tags: [terraform]
+
+    - name: Install Terraform binary
+      become: yes
+      copy:
+        src: /tmp/terraform
+        dest: "{{ bin_dir }}/terraform"
+        mode: "0755"
+      when: tools_state == "present"
+      tags: [terraform]
+
+    - name: Cleanup Terraform temp files
+      become: yes
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/terraform.zip
+        - /tmp/terraform
+      when: tools_state == "present"
+      tags: [terraform]
+
+    - name: Remove Terraform
+      become: yes
+      file:
+        path: "{{ bin_dir }}/terraform"
+        state: absent
+      when: tools_state == "absent"
+      tags: [terraform]
+
+  post_tasks:
+    - name: Verify versions (install-only)
+      shell: |
+        set -e
+        echo "terraform: $(terraform version | head -n1 || true)"
+        echo "kind: $(kind version || true)"
+        echo "kubectl: $(kubectl version --client=true --short 2>/dev/null || true)"
+        echo "helm: $(helm version --short || true)"
+        echo "docker: $(docker --version || true)"
+        echo "compose: $(docker compose version || true)"
+      args:
+        executable: /bin/bash
+      changed_when: false
+      when: tools_state == "present"
+      tags: [verify]
