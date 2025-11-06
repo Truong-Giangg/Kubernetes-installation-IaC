@@ -49,12 +49,20 @@ resource "helm_release" "argocd" {
 
   values = [yamlencode({
     dex = { enabled = false }
+    configs = {
+      params = {
+        "server.insecure" = "true"   # <- this is what the chart uses
+      }
+    }
     server = {
       ingress = {
         enabled          = true
         ingressClassName = "nginx"
         hosts            = ["argocd.localtest.me"]
         paths            = ["/"]
+        annotations = {
+          "nginx.ingress.kubernetes.io/backend-protocol" = "HTTP"
+        }
         tls              = []
       }
       extraArgs = ["--insecure"]
