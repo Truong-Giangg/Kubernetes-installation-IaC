@@ -18,6 +18,7 @@ module "addons" {
         ]
       }
     }
+    # act as reverse proxy
     ingress_nginx = {
       chart     = "ingress-nginx"
       repo      = "https://kubernetes.github.io/ingress-nginx"
@@ -25,7 +26,7 @@ module "addons" {
       namespace = "ingress-nginx"
       values    = {
         controller = {
-          hostPort = { enabled = true, ports = { http = 80, https = 443 } }
+          hostPort = { enabled = false }
           service  = { type = "NodePort", nodePorts = { http = 30080, https = 30443 } }
           watchIngressWithoutClass = true
         }
@@ -37,9 +38,10 @@ module "addons" {
 # Give ingress-nginx (and its admission webhook) time to become Ready
 resource "time_sleep" "wait_for_ingress_webhook" {
   depends_on      = [module.addons]
-  create_duration = "20s"
+  create_duration = "30s"
 }
 
+# Argo CD: ClusterIP + Ingress (or NodePort only)
 resource "helm_release" "argocd" {
   name             = "argocd"
   repository       = "https://argoproj.github.io/argo-helm"
@@ -49,23 +51,19 @@ resource "helm_release" "argocd" {
 
   values = [yamlencode({
     dex = { enabled = false }
-    configs = {
-      params = {
-        "server.insecure" = "true"   # <- this is what the chart uses
-      }
-    }
+    configs = { params = { "server.insecure" = "true" } }  # HTTP backend
     server = {
       ingress = {
         enabled          = true
         ingressClassName = "nginx"
-        hosts            = ["argocd.localtest.me"]
+        hosts            = ["argocd.localtest.me"] # This is not work, use yaml file instead!!!
         paths            = ["/"]
         annotations = {
           "nginx.ingress.kubernetes.io/backend-protocol" = "HTTP"
         }
-        tls              = []
+        tls = []
       }
-      extraArgs = ["--insecure"]
+      service = { type = "ClusterIP" }
     }
   })]
 
