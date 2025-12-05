@@ -56,7 +56,7 @@ resource "helm_release" "argocd" {
       ingress = {
         enabled          = true
         ingressClassName = "nginx"
-        hosts            = ["argocd.localtest.me"] # This is not work, use yaml file instead!!!
+        hosts            = ["argocd.example.com"]
         paths            = ["/"]
         annotations = {
           "nginx.ingress.kubernetes.io/backend-protocol" = "HTTP"
