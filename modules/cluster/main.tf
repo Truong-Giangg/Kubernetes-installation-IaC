@@ -17,8 +17,8 @@ variable "extra_port_mappings" {
     protocol      = string
   }))
   default = [
-    { containerPort = 30080, hostPort = 8080, protocol = "TCP" },
-    { containerPort = 30443, hostPort = 8443, protocol = "TCP" }
+    { containerPort = 30080, hostPort = 80, protocol = "TCP" },
+    { containerPort = 30443, hostPort = 443, protocol = "TCP" }
   ]
 }
 

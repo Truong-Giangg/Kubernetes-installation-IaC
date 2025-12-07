@@ -1,8 +1,16 @@
-init:
-	cd environments/local && terraform init
-plan:
-	cd environments/local && terraform plan -input=false
-apply:
-	cd environments/local && terraform apply -auto-approve -input=false
-destroy:
-	cd environments/local && terraform destroy -auto-approve
+init-cluster:
+	cd environments/local/cluster && terraform init
+plan-cluster:
+	cd environments/local/cluster && terraform plan -input=false
+apply-cluster:
+	cd environments/local/cluster && terraform apply -auto-approve -input=false
+destroy-cluster:
+	cd environments/local/cluster && terraform destroy -auto-approve
+init-addons:
+	cd environments/local/addons && terraform init
+plan-addons:
+	cd environments/local/addons && terraform plan -input=false
+apply-addons:
+	cd environments/local/addons && terraform apply -auto-approve -input=false
+destroy-addons:
+	cd environments/local/addons && terraform destroy -auto-approve
