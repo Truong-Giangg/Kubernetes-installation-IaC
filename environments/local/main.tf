@@ -18,7 +18,7 @@ module "addons" {
         ]
       }
     }
-    # act as reverse proxy
+    # ingress controller - 30080 (kind) <-> 8080 (host)
     ingress_nginx = {
       chart     = "ingress-nginx"
       repo      = "https://kubernetes.github.io/ingress-nginx"
@@ -51,16 +51,26 @@ resource "helm_release" "argocd" {
 
   values = [yamlencode({
     dex = { enabled = false }
-    configs = { params = { "server.insecure" = "true" } }  # HTTP backend
+    configs = { params = { "server.insecure" = "true" } }
     server = {
       ingress = {
         enabled          = true
         ingressClassName = "nginx"
-        hosts            = ["argocd.example.com"]
-        paths            = ["/"]
+        hostname         = "argocd.meiot.live"
         annotations = {
           "nginx.ingress.kubernetes.io/backend-protocol" = "HTTP"
         }
+        hosts = [
+          {
+            host  = "argocd.meiot.live"
+            paths = [
+              {
+                path     = "/"
+                pathType = "Prefix"
+              }
+            ]
+          }
+        ]
         tls = []
       }
       service = { type = "ClusterIP" }
@@ -69,3 +79,4 @@ resource "helm_release" "argocd" {
 
   depends_on = [time_sleep.wait_for_ingress_webhook]
 }
+
